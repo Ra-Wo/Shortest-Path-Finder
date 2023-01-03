@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<style>
+			body {
+				font-family: sans-serif;
+				/* center content */
+				display: flex;
+				justify-content: center;
+				align-items: center;
+			}
+
+			.style {
+				margin: 2px;
+				border: 15px solid black;
+			}
+
+			.grid {
+				display: flex;
+				flex-direction: column;
+				width: fit-content;
+			}
+
+			.cell {
+				width: 50px;
+				height: 50px;
+				border: 1px solid black;
+				box-sizing: border-box;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+
+			.input {
+				padding: 10px;
+			}
+			#button {
+				padding: 10px;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div class="grid style">
+			<canvas id="canvas" width="800" height="500"> Your browser does not support the HTML5 canvas tag. </canvas>
+			<input type="number" placeholder="FROM?" id="from" class="input" />
+			<input type="number" placeholder="TO?" id="to" class="input" />
+			<button id="button">Find Path</button>
+			<!-- cells will be added here -->
+		</div>
+
+		<script>
+			const ME = 1;
+			const TARGET = 0;
+			const NONE = -1;
+
+			const map = [
+				[
+					{ x: 0, y: 0, id: 0, scrapAmount: 10, units: 1, owner: NONE },
+					{ x: 1, y: 0, id: 1, scrapAmount: 5, units: 0, owner: NONE },
+					{ x: 2, y: 0, id: 2, scrapAmount: 10, units: 0, owner: NONE },
+					{ x: 3, y: 0, id: 3, scrapAmount: 9, units: 0, owner: NONE },
+					{ x: 4, y: 0, id: 4, scrapAmount: 5, units: 0, owner: NONE },
+				],
+				[
+					{ x: 0, y: 1, id: 5, scrapAmount: 5, units: 0, owner: NONE },
+					{ x: 1, y: 1, id: 6, scrapAmount: 8, units: 0, owner: NONE },
+					{ x: 2, y: 1, id: 7, scrapAmount: 10, units: 0, owner: NONE },
+					{ x: 3, y: 1, id: 8, scrapAmount: 1, units: 0, owner: NONE },
+					{ x: 4, y: 1, id: 9, scrapAmount: 10, units: 0, owner: NONE },
+				],
+				[
+					{ x: 0, y: 2, id: 10, scrapAmount: 10, units: 0, owner: NONE },
+					{ x: 1, y: 2, id: 11, scrapAmount: 0, units: 0, owner: NONE },
+					{ x: 2, y: 2, id: 12, scrapAmount: 0, units: 0, owner: NONE },
+					{ x: 3, y: 2, id: 13, scrapAmount: 0, units: 0, owner: NONE },
+					{ x: 4, y: 2, id: 14, scrapAmount: 0, units: 0, owner: NONE },
+				],
+				[
+					{ x: 0, y: 3, id: 15, scrapAmount: 0, units: 0, owner: NONE },
+					{ x: 1, y: 3, id: 16, scrapAmount: 0, units: 0, owner: NONE },
+					{ x: 2, y: 3, id: 17, scrapAmount: 0, units: 0, owner: NONE },
+					{ x: 3, y: 3, id: 18, scrapAmount: 0, units: 0, owner: NONE },
+					{ x: 4, y: 3, id: 19, scrapAmount: 0, units: 0, owner: NONE },
+				],
+				[
+					{ x: 0, y: 4, id: 20, scrapAmount: 0, units: 0, owner: NONE },
+					{ x: 1, y: 4, id: 21, scrapAmount: 2, units: 0, owner: NONE },
+					{ x: 2, y: 4, id: 22, scrapAmount: 0, units: 0, owner: NONE },
+					{ x: 3, y: 4, id: 23, scrapAmount: 0, units: 0, owner: NONE },
+					{ x: 4, y: 4, id: 24, scrapAmount: 0, units: 0, owner: NONE },
+				],
+			];
+
+			const canvas = document.getElementById('canvas');
+			const ctx = canvas.getContext('2d');
+			const width = canvas.width;
+			const height = canvas.height;
+
+			const drawMap = (map) => {
+				const cellWidth = width / map[0].length;
+				const cellHeight = height / map.length;
+
+				for (let i = 0; i < map.length; i++) {
+					for (let j = 0; j < map[i].length; j++) {
+						const cell = map[i][j];
+						const x = cell.x * cellWidth;
+						const y = cell.y * cellHeight;
+
+						ctx.fillStyle = 'white';
+						ctx.fillRect(x, y, cellWidth, cellHeight);
+
+						ctx.fillStyle = 'black';
+						ctx.font = '20px Arial';
+						ctx.fillText(cell.id, x + cellWidth / 2, y + cellHeight / 2);
+
+						if (cell.owner === ME) {
+							ctx.fillStyle = 'green';
+							ctx.fillRect(x, y, cellWidth, cellHeight);
+							ctx.fillStyle = 'white';
+							ctx.fillText(cell.id, x + cellWidth / 2, y + cellHeight / 2);
+						} else if (cell.owner === TARGET) {
+							ctx.fillStyle = 'red';
+							ctx.fillRect(x, y, cellWidth, cellHeight);
+							ctx.fillStyle = 'white';
+							ctx.fillText(cell.id, x + cellWidth / 2, y + cellHeight / 2);
+						}
+						// make a black border around the cell
+						ctx.strokeStyle = 'black';
+						ctx.strokeRect(x, y, cellWidth, cellHeight);
+
+						// draw path
+						canvas.addEventListener('click', (e) => {
+							const rect = canvas.getBoundingClientRect();
+							const x = e.clientX - rect.left;
+							const y = e.clientY - rect.top;
+							const cellX = Math.floor(x / cellWidth);
+							const cellY = Math.floor(y / cellHeight);
+							const cell = map[cellY][cellX];
+							const path = bfs(map, map[0][0], cell);
+
+							if (path) {
+								for (let i = 1; i < path.length - 1; i++) {
+									const cell = path[i];
+									const x = cell.x * cellWidth;
+									const y = cell.y * cellHeight;
+
+									ctx.fillStyle = 'blue';
+									ctx.fillRect(x, y, cellWidth, cellHeight);
+									ctx.fillStyle = 'white';
+									ctx.fillText(cell.id, x + cellWidth / 2, y + cellHeight / 2);
+								}
+							}
+						});
+					}
+				}
+			};
+
+			// find the shortest path from start to end
+			function bfs(map, start, end) {
+                const queue = [];
+                const visited = new Set();
+
+                queue.push([start]);
+                while (queue.length > 0) {
+                    const path = queue.shift();
+                    const cell = path[path.length - 1];
+
+                    if (cell === end) {
+                        return path;
+                    }
+
+                    if (visited.has(cell)) {
+                        continue;
+                    }
+
+                    visited.add(cell);
+                    const neighbors = getNeighbors(map, cell);
+                    for (let neighbor of neighbors) {
+                        if (neighbor.owner === ME) {
+                            continue;
+                        }
+                        const newPath = [...path, neighbor];
+                        queue.push(newPath);
+                    }
+                }
+            }
+
+
+			function getNeighbors(map, cell) {
+				const neighbors = [];
+
+				const x = cell.x;
+				const y = cell.y;
+
+				if (x > 0) {
+					neighbors.push(map[y][x - 1]);
+				}
+
+				if (x < map[0].length - 1) {
+					neighbors.push(map[y][x + 1]);
+				}
+
+				if (y > 0) {
+					neighbors.push(map[y - 1][x]);
+				}
+
+				if (y < map.length - 1) {
+					neighbors.push(map[y + 1][x]);
+				}
+
+				return neighbors;
+			}
+
+			// draw the path on the map (every cell in the path should be a circle)
+			const drawPath = (map, path) => {
+				const cellWidth = width / map[0].length;
+				const cellHeight = height / map.length;
+
+				for (let i = 0; i < path.length; i++) {
+					const cell = path[i];
+					const x = cell.x * cellWidth;
+					const y = cell.y * cellHeight;
+
+					ctx.beginPath();
+					ctx.arc(x + cellWidth / 2, y + cellHeight / 2, cellWidth / 4, 0, 2 * Math.PI);
+					ctx.stroke();
+				}
+			};
+
+			const button = document.getElementById('button');
+
+			button.addEventListener('click', () => {
+				const to = Number(document.getElementById('to').value);
+				const from = Number(document.getElementById('from').value);
+
+				let start = null;
+				let end = null;
+
+				for (let i = 0; i < map.length; i++) {
+					for (let j = 0; j < map[i].length; j++) {
+						const cell = map[i][j];
+
+						cell.owner = NONE;
+
+						if (cell.id == to) {
+							cell.owner = TARGET;
+							end = cell;
+						}
+
+						if (cell.id == from) {
+							cell.owner = ME;
+							start = cell;
+						}
+					}
+				}
+
+				console.log(start, end);
+
+				drawMap(map);
+
+				let path = bfs(map, start, end);
+				drawPath(map, path);
+			});
+
+			drawMap(map);
+		</script>
+	</body>
+</html>
